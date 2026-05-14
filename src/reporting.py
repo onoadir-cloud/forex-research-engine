@@ -3,6 +3,34 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pandas as pd
+
+
+def _format_cell(value) -> str:
+    if pd.isna(value):
+        return ""
+    if isinstance(value, float):
+        return f"{value:.6g}"
+    text = str(value)
+    return text.replace("|", "\\|").replace("\n", " ")
+
+
+def _simple_markdown_table(df: pd.DataFrame, columns: list[str], empty_text: str) -> str:
+    """Render a small markdown table without pandas' optional tabulate dependency."""
+    if df.empty:
+        return empty_text
+    existing = [col for col in columns if col in df.columns]
+    if not existing:
+        return empty_text
+
+    view = df[existing].copy()
+    header = "| " + " | ".join(existing) + " |"
+    separator = "| " + " | ".join(["---"] * len(existing)) + " |"
+    rows = []
+    for _, row in view.iterrows():
+        rows.append("| " + " | ".join(_format_cell(row[col]) for col in existing) + " |")
+    return "\n".join([header, separator, *rows])
+
 
 def write_reports(symbol, base_timeframe, data_summary, scored_patterns, output_dir="reports"):
     out = Path(output_dir)
@@ -12,12 +40,37 @@ def write_reports(symbol, base_timeframe, data_summary, scored_patterns, output_
     json_path = out / f"{symbol}_best_candidates.json"
 
     scored_patterns.to_csv(csv_path, index=False)
-    best = scored_patterns[scored_patterns["verdict"].isin(["Interesting", "Strong Candidate for Further Research"])].sort_values("research_score", ascending=False)
-    best_records = best.head(20).to_dict(orient="records")
-    json_path.write_text(json.dumps(best_records, indent=2))
 
-    weak = scored_patterns[scored_patterns["verdict"].isin(["Reject", "Weak Evidence"])]
-    by_reason = weak.groupby("primary_rejection_reason").size().to_dict() if not weak.empty else {}
+    if "verdict" in scored_patterns.columns:
+        best = scored_patterns[
+            scored_patterns["verdict"].isin(["Interesting", "Strong Candidate for Further Research"])
+        ]
+        if "research_score" in best.columns:
+            best = best.sort_values("research_score", ascending=False)
+        weak = scored_patterns[scored_patterns["verdict"].isin(["Reject", "Weak Evidence"])]
+    else:
+        best = scored_patterns.iloc[0:0].copy()
+        weak = scored_patterns.iloc[0:0].copy()
+
+    best_records = best.head(20).to_dict(orient="records")
+    json_path.write_text(json.dumps(best_records, indent=2, default=str))
+
+    if not weak.empty and "primary_rejection_reason" in weak.columns:
+        by_reason = weak.groupby("primary_rejection_reason").size().to_dict()
+    else:
+        by_reason = {}
+
+    best_table = _simple_markdown_table(
+        best.head(10),
+        ["pattern_name", "verdict", "research_score"],
+        "No candidates found.",
+    )
+    weak_table = _simple_markdown_table(
+        weak.head(20),
+        ["pattern_name", "verdict", "primary_rejection_reason"],
+        "None.",
+    )
+
     md = f"""# {symbol} behavior research report
 
 ## Data summary
@@ -34,10 +87,10 @@ def write_reports(symbol, base_timeframe, data_summary, scored_patterns, output_
 This report reviews historical tendency only and identifies research candidate patterns with weak evidence handling.
 
 ## Best patterns
-{best[['pattern_name','verdict','research_score']].head(10).to_markdown(index=False) if not best.empty else 'No candidates found.'}
+{best_table}
 
 ## Rejected or weak patterns
-{weak[['pattern_name','verdict','primary_rejection_reason']].head(20).to_markdown(index=False) if not weak.empty else 'None.'}
+{weak_table}
 
 ## Limitations
 - This is a historical event study, not proof of future performance.
