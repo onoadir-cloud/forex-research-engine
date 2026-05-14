@@ -63,3 +63,12 @@ Timestamps are treated as UTC-naive unless timezone information exists.
 - Select stable research candidates after additional validation.
 - Define strict execution/risk rules.
 - Then map candidate definitions into MT5 EA logic in a later phase.
+
+
+
+## End-to-end smoke run
+```bash
+python run_research.py --csv data/EURUSD_M15.csv --symbol EURUSD --base-timeframe M15 --spread-pips 1.2 --slippage-pips 0.2 --output-dir reports
+```
+=======
+

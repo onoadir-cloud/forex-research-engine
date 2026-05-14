@@ -37,12 +37,12 @@ EXPECTED_EVENT_STUDY_COLUMNS = [
 
 
 def _state(value, fallback: str) -> str:
-    """Normalize missing/Unknown regime labels without discarding useful rows.
+    """Normalize missing/Unknown states into broad research buckets.
 
-    Short synthetic datasets, and early regions of real datasets, may not have
-    enough higher-timeframe history for SMA200/ATR-percentile states. Event
-    study should still aggregate these as broad fallback buckets rather than
-    returning a completely empty frame.
+    Early rows and compact synthetic datasets often lack enough history for
+    SMA200/ATR-percentile based states, especially on H4. Returning broad
+    fallback buckets keeps the event study usable while still preserving the
+    completed-candle/no-lookahead higher timeframe lookup.
     """
     if value is None or pd.isna(value):
         return fallback
@@ -77,6 +77,7 @@ def run_event_study(base_df, timeframes, spread_pips=0.0, slippage_pips=0.0) -> 
     for i, row in base.iterrows():
         if "datetime" not in row or pd.isna(row["datetime"]):
             continue
+
         h1r = get_completed_htf_row(h1, row["datetime"], TIMEFRAME_TO_MINUTES["H1"]) if not h1.empty else None
         h4r = get_completed_htf_row(h4, row["datetime"], TIMEFRAME_TO_MINUTES["H4"]) if not h4.empty else None
         if h1r is None or h4r is None:
