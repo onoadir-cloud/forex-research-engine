@@ -13,7 +13,7 @@ BUILD_MAP = {
 
 
 def _pandas_rule(tf: str) -> str:
-    return {"M5": "5min", "M15": "15min", "M30": "30min", "H1": "1h", "H4": "4h", "D1": "1d"}[tf]
+    return {"M5": "5min", "M15": "15min", "M30": "30min", "H1": "1h", "H4": "4h", "D1": "1D"}[tf]
 
 
 def resample_ohlc(df: pd.DataFrame, timeframe: str) -> pd.DataFrame:
