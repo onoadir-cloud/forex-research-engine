@@ -48,7 +48,12 @@ def write_reports(symbol, base_timeframe, data_summary, scored_patterns, output_
     best_records = pd.concat([strong, watchlist], axis=0).head(20).to_dict(orient="records")
     json_path.write_text(json.dumps(best_records, indent=2, default=str))
 
-    by_reason = weak.groupby("primary_rejection_reason").size().to_dict() if (not weak.empty and "primary_rejection_reason" in weak.columns) else {}
+    if not weak.empty and "primary_rejection_reason" in weak.columns:
+        reasons = weak["primary_rejection_reason"].astype(str).str.strip()
+        filtered = weak.loc[reasons != ""].copy()
+        by_reason = filtered.groupby("primary_rejection_reason").size().to_dict() if not filtered.empty else {}
+    else:
+        by_reason = {}
     no_strong_msg = "No strong research candidate was found." if strong.empty else ""
     only_weak_msg = "Only weak historical tendencies were found. These are not sufficient for strategy construction." if strong.empty and watchlist.empty else ""
 

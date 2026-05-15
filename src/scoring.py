@@ -121,6 +121,13 @@ def score_patterns(patterns_df: pd.DataFrame, tested_patterns_count: int) -> pd.
         if _clean_reason(reason) and verdict == "Strong Candidate for Further Research":
             verdict = "Weak Evidence"
 
+        reason = _clean_reason(reason)
+        if verdict in {"Reject", "Weak Evidence"} and not reason:
+            if verdict == "Weak Evidence":
+                reason = "Below Interesting thresholds"
+            else:
+                reason = "Below Weak Evidence thresholds"
+
         scores_before_penalty.append(score)
         penalties.append(base_penalty)
         scores.append(score - base_penalty)

@@ -50,3 +50,23 @@ def test_2x_cost_failure_prevents_interesting_or_strong():
     out = score_patterns(pd.DataFrame([_base_row(avg_forward_return=0.001, estimated_cost_return=0.0006)]), 100)
     assert out.iloc[0]["cost_stress_2x_pass"] == False
     assert out.iloc[0]["verdict"] in {"Weak Evidence", "Reject"}
+
+
+def test_reject_or_weak_always_have_non_empty_rejection_reason():
+    rows = [
+        _base_row(sample_size=20, oos_sample_size=10, primary_rejection_reason=""),
+        _base_row(oos_sample_size=90, primary_rejection_reason=None),
+        _base_row(avg_forward_return=0.001, estimated_cost_return=0.0006, primary_rejection_reason=""),
+    ]
+    out = score_patterns(pd.DataFrame(rows), 100)
+    subset = out[out["verdict"].isin(["Reject", "Weak Evidence"])]
+    assert not subset.empty
+    assert subset["primary_rejection_reason"].notna().all()
+    assert (subset["primary_rejection_reason"].astype(str).str.strip() != "").all()
+
+
+def test_weak_evidence_without_blocking_reason_gets_default_reason():
+    out = score_patterns(pd.DataFrame([_base_row(oos_sample_size=90, primary_rejection_reason="")]), 100)
+    row = out.iloc[0]
+    assert row["verdict"] == "Weak Evidence"
+    assert row["primary_rejection_reason"] == "Below Interesting thresholds"
