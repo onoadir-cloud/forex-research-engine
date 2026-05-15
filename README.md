@@ -72,3 +72,11 @@ python run_research.py --csv data/EURUSD_M15.csv --symbol EURUSD --base-timefram
 ```
 =======
 
+
+
+## Research reliability rules
+- Scanning more patterns increases false-positive risk, so scoring applies a multiple-testing penalty.
+- Out-of-sample (OOS) sample size is required for stronger verdicts; weak OOS coverage cannot be treated as a candidate.
+- Walk-forward consistency across chronological windows is required before a pattern can be considered stronger evidence.
+- Cost stress testing checks whether EV remains positive under higher-than-estimated costs.
+- `Weak Evidence` is not a strategy and is not sufficient for construction of trading rules.

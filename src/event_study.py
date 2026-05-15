@@ -33,6 +33,12 @@ EXPECTED_EVENT_STUDY_COLUMNS = [
     "is_direction",
     "oos_direction",
     "oos_agrees_with_is",
+    "wf_1_ev_after_costs",
+    "wf_2_ev_after_costs",
+    "wf_3_ev_after_costs",
+    "wf_positive_windows",
+    "wf_total_windows",
+    "wf_consistency_ratio",
 ]
 
 
@@ -135,6 +141,15 @@ def run_event_study(base_df, timeframes, spread_pips=0.0, slippage_pips=0.0) -> 
         atr_mean = g["atr14"].mean()
         expected_move_atr = avg / atr_mean if pd.notna(atr_mean) and atr_mean != 0 else np.nan
 
+        gs = g.sort_index().reset_index(drop=True)
+        boundaries = np.array_split(np.arange(len(gs)), 3)
+        wf_chunks = [gs.iloc[idx] for idx in boundaries if len(idx)]
+        wf_evs = [(chunk["forward_return"].mean() - chunk["cost"].mean()) for chunk in wf_chunks]
+        while len(wf_evs) < 3:
+            wf_evs.append(np.nan)
+        wf_total = len(wf_chunks)
+        wf_positive = sum(1 for v in wf_evs[:wf_total] if pd.notna(v) and v > 0)
+
         grouped.append({
             "pattern_id": _pattern_id(keys),
             "pattern_name": " | ".join(map(str, keys)),
@@ -160,6 +175,14 @@ def run_event_study(base_df, timeframes, spread_pips=0.0, slippage_pips=0.0) -> 
             "is_direction": is_direction,
             "oos_direction": oos_direction,
             "oos_agrees_with_is": is_direction != "Unknown" and is_direction == oos_direction,
+            "wf_1_ev_after_costs": wf_evs[0],
+            "wf_2_ev_after_costs": wf_evs[1],
+            "wf_3_ev_after_costs": wf_evs[2],
+            "wf_positive_windows": wf_positive,
+            "wf_total_windows": wf_total,
+            "wf_consistency_ratio": (wf_positive / wf_total) if wf_total else np.nan,
+            # TODO: phase-2 walk-forward should use richer rolling windows and full event-level diagnostics.
+            
         })
 
     if not grouped:
