@@ -16,19 +16,15 @@ def _format_cell(value) -> str:
 
 
 def _simple_markdown_table(df: pd.DataFrame, columns: list[str], empty_text: str) -> str:
-    """Render a small markdown table without pandas' optional tabulate dependency."""
     if df.empty:
         return empty_text
     existing = [col for col in columns if col in df.columns]
     if not existing:
         return empty_text
-
     view = df[existing].copy()
     header = "| " + " | ".join(existing) + " |"
     separator = "| " + " | ".join(["---"] * len(existing)) + " |"
-    rows = []
-    for _, row in view.iterrows():
-        rows.append("| " + " | ".join(_format_cell(row[col]) for col in existing) + " |")
+    rows = ["| " + " | ".join(_format_cell(row[col]) for col in existing) + " |" for _, row in view.iterrows()]
     return "\n".join([header, separator, *rows])
 
 
@@ -41,35 +37,20 @@ def write_reports(symbol, base_timeframe, data_summary, scored_patterns, output_
 
     scored_patterns.to_csv(csv_path, index=False)
 
-    if "verdict" in scored_patterns.columns:
-        best = scored_patterns[
-            scored_patterns["verdict"].isin(["Interesting", "Strong Candidate for Further Research"])
-        ]
-        if "research_score" in best.columns:
-            best = best.sort_values("research_score", ascending=False)
-        weak = scored_patterns[scored_patterns["verdict"].isin(["Reject", "Weak Evidence"])]
-    else:
-        best = scored_patterns.iloc[0:0].copy()
-        weak = scored_patterns.iloc[0:0].copy()
+    strong = scored_patterns[scored_patterns.get("verdict", pd.Series(dtype=str)) == "Strong Candidate for Further Research"]
+    watchlist = scored_patterns[scored_patterns.get("verdict", pd.Series(dtype=str)) == "Interesting"]
+    weak = scored_patterns[scored_patterns.get("verdict", pd.Series(dtype=str)).isin(["Reject", "Weak Evidence"])]
 
-    best_records = best.head(20).to_dict(orient="records")
+    if "research_score" in scored_patterns.columns:
+        strong = strong.sort_values("research_score", ascending=False)
+        watchlist = watchlist.sort_values("research_score", ascending=False)
+
+    best_records = pd.concat([strong, watchlist], axis=0).head(20).to_dict(orient="records")
     json_path.write_text(json.dumps(best_records, indent=2, default=str))
 
-    if not weak.empty and "primary_rejection_reason" in weak.columns:
-        by_reason = weak.groupby("primary_rejection_reason").size().to_dict()
-    else:
-        by_reason = {}
-
-    best_table = _simple_markdown_table(
-        best.head(10),
-        ["pattern_name", "verdict", "research_score"],
-        "No candidates found.",
-    )
-    weak_table = _simple_markdown_table(
-        weak.head(20),
-        ["pattern_name", "verdict", "primary_rejection_reason"],
-        "None.",
-    )
+    by_reason = weak.groupby("primary_rejection_reason").size().to_dict() if (not weak.empty and "primary_rejection_reason" in weak.columns) else {}
+    no_strong_msg = "No strong research candidate was found." if strong.empty else ""
+    only_weak_msg = "Only weak historical tendencies were found. These are not sufficient for strategy construction." if strong.empty and watchlist.empty else ""
 
     md = f"""# {symbol} behavior research report
 
@@ -84,13 +65,35 @@ def write_reports(symbol, base_timeframe, data_summary, scored_patterns, output_
 {json.dumps(by_reason, indent=2)}
 
 ## Behavior profile
-This report reviews historical tendency only and identifies research candidate patterns with weak evidence handling.
+This report reviews historical tendency only and identifies conservative research candidates under reliability constraints.
 
-## Best patterns
-{best_table}
+## Strong candidates
+{no_strong_msg}
+{_simple_markdown_table(strong.head(10), ["pattern_name", "verdict", "research_score"], "None.")}
 
-## Rejected or weak patterns
-{weak_table}
+## Research watchlist
+{_simple_markdown_table(watchlist.head(10), ["pattern_name", "verdict", "research_score"], "None.")}
+
+## Weak/rejected patterns
+{only_weak_msg}
+{_simple_markdown_table(weak.head(20), ["pattern_name", "verdict", "primary_rejection_reason"], "None.")}
+
+## Pattern definitions
+- Downtrend: `close < sma200` and `sma50_slope < 0` (with trend inputs available).
+- Uptrend: `close > sma200` and `sma50_slope > 0` (with trend inputs available).
+- Range: trend inputs available, but neither Uptrend nor Downtrend.
+- Low volatility: `atr_percentile_200 < 0.33`.
+- Normal volatility: `0.33 <= atr_percentile_200 <= 0.66`.
+- High volatility: `atr_percentile_200 > 0.66`.
+- Compression: `range_compression_20` below its rolling 100-bar 20th percentile.
+- Neutral: default setup/trigger state when no rule overrides.
+- MomentumPositive: `return_1 > 0`.
+- MomentumNegative: `return_1 < 0`.
+- RsiRecoveryLow: `rsi14 < 30`.
+- RsiRejectionHigh: `rsi14 > 70`.
+- BreakoutUp20: `breakout_20_up` is true.
+- BreakdownDown20: `breakout_20_down` is true.
+- Sessions: Asia (00:00-06:59), London (07:00-11:59), LondonNewYorkOverlap (12:00-15:59), NewYork (16:00-20:59), Other (remaining hours).
 
 ## Limitations
 - This is a historical event study, not proof of future performance.

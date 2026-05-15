@@ -75,6 +75,7 @@ def test_cli_end_to_end(tmp_path):
 
     report_text = report_md.read_text(encoding="utf-8").lower()
     assert "## limitations" in report_text
+    assert "## pattern definitions" in report_text
     assert "this is a historical event study, not proof of future performance." in report_text
 
     for phrase in FORBIDDEN:
@@ -82,3 +83,5 @@ def test_cli_end_to_end(tmp_path):
 
     loaded_candidates = json.loads(candidates_json.read_text(encoding="utf-8"))
     assert isinstance(loaded_candidates, list)
+    if not any((patterns["verdict"] == "Strong Candidate for Further Research")):
+        assert "no strong research candidate was found" in report_text

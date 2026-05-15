@@ -19,11 +19,15 @@ def _prep(n=2000):
     return df, tfs
 
 
-def test_event_study_produces_rows():
+def test_event_study_produces_rows_and_walk_forward_columns():
     df, tfs = _prep()
     out = run_event_study(df, tfs, 1.2, 0.2)
     assert isinstance(out, pd.DataFrame)
-    assert set(["pattern_id","sample_size","oos_sample_size"]).issubset(out.columns)
+    assert set([
+        "pattern_id", "sample_size", "oos_sample_size",
+        "wf_1_ev_after_costs", "wf_2_ev_after_costs", "wf_3_ev_after_costs",
+        "wf_positive_windows", "wf_total_windows", "wf_consistency_ratio",
+    ]).issubset(out.columns)
 
 
 def test_oos_split_chronological():
