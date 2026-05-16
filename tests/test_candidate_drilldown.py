@@ -72,3 +72,8 @@ def test_candidate_drilldown_outputs_and_schema(tmp_path):
 
     summary = json.loads(open(out["summary_json"], "r", encoding="utf-8").read())
     assert isinstance(summary, dict)
+
+    spec = json.loads(open(out["forward_test_strategy_spec_json"], "r", encoding="utf-8").read())
+    assert isinstance(spec, dict)
+    for c in ["pattern_id", "direction", "forward_test_readiness", "sample", "recommended_tp_sl", "risk_flags", "execution_guardrails"]:
+        assert c in spec
