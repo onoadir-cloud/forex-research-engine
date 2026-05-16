@@ -53,6 +53,44 @@ def _first_touch(event, base, direction, tp_distance, sl_distance, max_hold_bars
     return "TIMEOUT", 0.0
 
 
+
+
+def _build_forward_test_strategy_spec(pattern_id: str, direction: str, events: pd.DataFrame, best: pd.DataFrame, concentration: dict, final: str) -> dict:
+    top = best.iloc[0].to_dict() if len(best) else {}
+    return {
+        "pattern_id": pattern_id,
+        "direction": direction,
+        "forward_test_readiness": final,
+        "sample": {
+            "event_count": int(len(events)),
+            "is_count": int((events["split"] == "IS").sum()),
+            "oos_count": int((events["split"] == "OOS").sum()),
+            "date_start": str(events["datetime"].min()),
+            "date_end": str(events["datetime"].max()),
+        },
+        "recommended_tp_sl": {
+            "tp_type": top.get("tp_type"),
+            "tp_value": top.get("tp_value"),
+            "sl_value": top.get("sl_value"),
+            "max_hold_bars": top.get("max_hold_bars"),
+            "avg_r_after_costs": top.get("avg_r_after_costs"),
+            "wf_positive_windows": top.get("wf_positive_windows"),
+            "is_oos_agree": top.get("is_oos_agree"),
+            "verdict": top.get("verdict"),
+        },
+        "risk_flags": {
+            "profit_concentration_top_10pct": concentration.get("top_10_percent_events_contribution", 0.0),
+            "profit_concentration_top_5pct": concentration.get("top_5_percent_events_contribution", 0.0),
+            "largest_single_event_contribution": concentration.get("largest_single_event_contribution", 0.0),
+        },
+        "execution_guardrails": [
+            "Paper/forward test only; no live deployment.",
+            "Keep costs at or below modeled spread+slippage assumptions.",
+            "Re-check direction and TP/SL profile after each forward-test block.",
+            "Stop forward testing if OOS expectancy turns negative for 2 consecutive review windows.",
+        ],
+    }
+
 def run_candidate_drilldown(base_df, timeframes, pattern_id: str, spread_pips: float = 0.0, slippage_pips: float = 0.0, output_dir: str = "drilldown_reports") -> dict:
     base = base_df.reset_index(drop=True).copy()
     h1 = timeframes.get("H1", pd.DataFrame())
@@ -180,12 +218,15 @@ def run_candidate_drilldown(base_df, timeframes, pattern_id: str, spread_pips: f
     symbol = str(base_df.get("symbol", pd.Series(["EURUSD"])).iloc[0]) if "symbol" in base_df.columns else "EURUSD"
     out = Path(output_dir); out.mkdir(parents=True, exist_ok=True)
     stem = f"{symbol}_{pattern_id}"
-    events_path = out / f"{stem}_events.csv"; monthly_path = out / f"{stem}_monthly.csv"; grid_path = out / f"{stem}_tp_sl_grid.csv"; summary_path = out / f"{stem}_summary.json"; md_path = out / f"{stem}_drilldown.md"
+    events_path = out / f"{stem}_events.csv"; monthly_path = out / f"{stem}_monthly.csv"; grid_path = out / f"{stem}_tp_sl_grid.csv"; summary_path = out / f"{stem}_summary.json"; md_path = out / f"{stem}_drilldown.md"; spec_path = out / f"{stem}_forward_test_strategy_spec.json"
     events[EVENT_COLUMNS].to_csv(events_path, index=False)
     monthly.to_csv(monthly_path, index=False)
     grid.to_csv(grid_path, index=False)
     summary = {"pattern_id": pattern_id, "direction": direction, "event_count": len(events), "is_count": int((events['split']=='IS').sum()), "oos_count": int((events['split']=='OOS').sum()), "concentration": concentration, "final_conclusion": final}
     summary_path.write_text(json.dumps(summary, indent=2))
+
+    spec = _build_forward_test_strategy_spec(pattern_id, direction, events, best, concentration, final)
+    spec_path.write_text(json.dumps(spec, indent=2))
     warn = []
     if concentration["top_10_percent_events_contribution"] > 0.60:
         warn.append("Profit concentration risk detected.")
@@ -206,4 +247,4 @@ def run_candidate_drilldown(base_df, timeframes, pattern_id: str, spread_pips: f
         "- Passing drilldown means only candidate for paper/forward test, not live trading.",
     ]))
 
-    return {"markdown": str(md_path), "events_csv": str(events_path), "monthly_csv": str(monthly_path), "tp_sl_grid_csv": str(grid_path), "summary_json": str(summary_path), "summary": summary}
+    return {"markdown": str(md_path), "events_csv": str(events_path), "monthly_csv": str(monthly_path), "tp_sl_grid_csv": str(grid_path), "summary_json": str(summary_path), "forward_test_strategy_spec_json": str(spec_path), "summary": summary, "forward_test_strategy_spec": spec}
