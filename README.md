@@ -80,3 +80,11 @@ python run_research.py --csv data/EURUSD_M15.csv --symbol EURUSD --base-timefram
 - Walk-forward consistency across chronological windows is required before a pattern can be considered stronger evidence.
 - Cost stress testing checks whether EV remains positive under higher-than-estimated costs.
 - `Weak Evidence` is not a strategy and is not sufficient for construction of trading rules.
+
+## Candidate Drilldown
+
+Scanner output is not a strategy. Use candidate drilldown to reconstruct one selected research pattern and validate stability before any execution work.
+
+- The drilldown validates one selected pattern at event level (IS/OOS, walk-forward, monthly/yearly behavior, and profit concentration).
+- TP/SL first-touch diagnostics are bar-based and not tick-accurate.
+- Passing drilldown means only a candidate for paper/forward test, not live trading.
